@@ -37,7 +37,7 @@ def auth_url() -> None:
         include_granted_scopes="false",
         prompt="consent select_account",
     )
-    PENDING_PATH.write_text(json.dumps({"state": state}, indent=2), encoding="utf-8")
+    PENDING_PATH.write_text(json.dumps({"state": state, "code_verifier": getattr(flow, "code_verifier", None)}, indent=2), encoding="utf-8")
     print(url)
 
 
@@ -45,7 +45,10 @@ def auth_code(code_or_url: str) -> None:
     flow = make_flow()
     if PENDING_PATH.exists():
         try:
-            flow.oauth2session.state = json.loads(PENDING_PATH.read_text(encoding="utf-8")).get("state")
+            pending = json.loads(PENDING_PATH.read_text(encoding="utf-8"))
+            flow.oauth2session.state = pending.get("state")
+            if pending.get("code_verifier"):
+                flow.code_verifier = pending["code_verifier"]
         except Exception:
             pass
     flow.fetch_token(authorization_response=code_or_url if code_or_url.startswith("http") else None, code=None if code_or_url.startswith("http") else code_or_url)
