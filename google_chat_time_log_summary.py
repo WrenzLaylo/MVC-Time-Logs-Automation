@@ -73,11 +73,12 @@ DIRECT_SHARE_ROLE = os.environ.get("DIRECT_SHARE_ROLE", "writer")
 # Google Chat currently exposes user IDs, not display names, for this Space.
 # These stable IDs were mapped from the user's sample time-log export.
 SENDER_NAME_OVERRIDES = {
-    # Fill these with stable users/<id> values if Google Chat hides display names.
-    # Expected MVS members:
-    # - Aliyah Ayco <aliyah@managedvirtualservices.com>
-    # - Elaissa / DREWS VA Trainee <drewsvatrainee@managedvirtualservices.com>
-    # - Wrenz Laylo <wrenz@managedvirtualservices.com>
+    # Google Chat hides display names for this MVS space, so map stable sender IDs.
+    "users/107793674604203499940": "Aliyah Ayco",
+    "users/111498914659577072555": "Wrenz Laylo",
+    "users/113867615250966443965": "Elaissa / DREWS VA Trainee",
+    # Space manager/admin; keep visible if they ever post a log.
+    "users/107931712986491593833": "MVS Manager",
 }
 
 TIME_RE = r"(\d{1,2}:\d{2}|\d{3,4}|\d{1,2})"
@@ -85,7 +86,7 @@ TIME_RE = r"(\d{1,2}:\d{2}|\d{3,4}|\d{1,2})"
 EVENT_PATTERNS = [
     # Include common short forms and typos seen in chat logs.
     ("arrival", re.compile(r"\b(?:arrive|arrived|arrival|arive|arived|arrv|arrvd)\b\s*[-:]?\s*" + TIME_RE, re.I)),
-    ("login", re.compile(r"\b(?:log\s*in|login|logged\s*in|logn|lgin|start|started)\b\s*[-:]?\s*" + TIME_RE, re.I)),
+    ("login", re.compile(r"\b(?:log\s*in|login|logged\s*in|logn|lgin|in|start|started)\b\s*[-:]?\s*" + TIME_RE, re.I)),
     ("lunch", re.compile(r"\b(?:lunch|luch|lnch|break|brk)\b\s*[-:]?\s*" + TIME_RE, re.I)),
     ("back", re.compile(r"\b(?:back|bck|bak|returned?|return|rtrn)\b\s*[-:]?\s*" + TIME_RE, re.I)),
     ("out", re.compile(r"\b(?:out|oyt|logout|log\s*out|clock\s*out|end|ended|done|finish|finished)\b\s*[-:]?\s*" + TIME_RE, re.I)),
@@ -190,6 +191,9 @@ def parse_time_to_minutes(s: str) -> int | None:
             hour, minute = int(s), 0
         elif len(s) == 3:
             hour, minute = int(s[0]), int(s[1:])
+        elif len(s) == 5 and int(s[:2]) <= 23 and int(s[2:4]) <= 59:
+            # Common typo in Chat logs: "12011" should be treated as 12:01.
+            hour, minute = int(s[:2]), int(s[2:4])
         else:
             hour, minute = int(s[:-2]), int(s[-2:])
     if hour > 23 or minute > 59:
@@ -466,11 +470,15 @@ def set_permissions(drive, file_id: str) -> None:
         for email in DIRECT_SHARE_EMAILS:
             if email == OWNER_EMAIL or email in existing_emails:
                 continue
-            execute_google(drive.permissions().create(
-                fileId=file_id,
-                body={"type": "user", "role": DIRECT_SHARE_ROLE, "emailAddress": email},
-                sendNotificationEmail=False,
-            ), label=f"Drive direct permission create {email}")
+            try:
+                execute_google(drive.permissions().create(
+                    fileId=file_id,
+                    body={"type": "user", "role": DIRECT_SHARE_ROLE, "emailAddress": email},
+                    # Cross-org and not-yet-Google-account emails may require notification.
+                    sendNotificationEmail=True,
+                ), label=f"Drive direct permission create {email}")
+            except Exception as e:
+                print(f"Warning: Failed direct share for {email} on {file_id}: {e}")
     except Exception as e:
         print(f"Warning: Failed to set permissions/ownership for {file_id}: {e}")
 
