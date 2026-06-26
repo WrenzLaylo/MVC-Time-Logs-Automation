@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.env
+google_token.json
+.DS_Store

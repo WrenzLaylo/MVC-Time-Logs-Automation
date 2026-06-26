@@ -1,0 +1,60 @@
+name: Managed Virtual Services Time Log Automation
+
+on:
+  schedule:
+    # Same schedule as AGG: update weekly employee timesheets daily at 4:20 PM Manila time (08:20 UTC)
+    - cron: '20 8 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - weekly
+          - probe
+      target_date:
+        description: 'Optional target date in YYYY-MM-DD format. Blank = today in Asia/Manila.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  run-timesheets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install -r requirements.txt
+
+      - name: Set up Google credentials
+        env:
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+        run: |
+          mkdir -p /tmp
+          printf '%s' "$GOOGLE_TOKEN_JSON" > /tmp/google_token.json
+
+      - name: Set up environment
+        run: |
+          echo "GOOGLE_TOKEN_PATH=/tmp/google_token.json" >> "$GITHUB_ENV"
+          echo "GOOGLE_ENV_PATH=/tmp/.env" >> "$GITHUB_ENV"
+          echo "CHAT_SPACE_ID=AAQAvfYSh9k" >> "$GITHUB_ENV"
+          echo "OWNER_EMAIL=ayel@managedvirtualservices.com" >> "$GITHUB_ENV"
+          echo "ROOT_FOLDER_NAME=Managed Virtual Services Employee Timesheets" >> "$GITHUB_ENV"
+          echo "SHARE_DOMAIN=managedvirtualservices.com" >> "$GITHUB_ENV"
+          echo "DIRECT_SHARE_EMAILS=wrenz@managedvirtualservices.com,aggcomputers@aggdoors.com.au,ayel@aggdoors.com.au" >> "$GITHUB_ENV"
+          echo "DIRECT_SHARE_ROLE=writer" >> "$GITHUB_ENV"
+
+      - name: Run timesheet update
+        run: |
+          args=(--mode "${{ inputs.mode || 'daily' }}" --catch-up)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.target_date }}" ]; then
+            args+=(--date "${{ inputs.target_date }}")
+          fi
+          python google_chat_time_log_summary.py "${args[@]}"
