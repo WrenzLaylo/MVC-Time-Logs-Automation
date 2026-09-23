@@ -77,6 +77,7 @@ SENDER_NAME_OVERRIDES = {
     "users/107793674604203499940": "Aliyah Ayco",
     "users/111498914659577072555": "Wrenz Laylo",
     "users/113867615250966443965": "Elaissa / DREWS VA Trainee",
+    "users/113087795046746589165": "Jess",
     # Space manager/admin; keep visible if they ever post a log.
     "users/107931712986491593833": "MVS Manager",
 }
